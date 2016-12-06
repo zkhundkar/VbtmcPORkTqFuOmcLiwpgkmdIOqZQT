@@ -1,0 +1,25 @@
+IATRISCAN INSTALLATION CONFIGURATION
+RUN DATE: Mon Dec 05 2016
+RUN TIME: 23:10:05
+
+SERVER NAME: mypc
+
+SHARED FOLDERS ON THIS SERVER
+------------------------------------------------------------
+
+IP ADDRESSES ON THIS MACHINE:192.168.99.1
+   192.168.56.1
+   192.168.11.10
+------------------------------------------------------------
+
+DIRECTORY STRUCTURE IN IATRIC FOLDER
+------------------------------------------------------------
+
+SERVER CONFIGURATION DETAILS
+------------------------------------------------------------
+ScanServer installation dir: C:\Users\Zeta\Documents\GitHub\Public-Portfolio\VbtmcPORkTqFuOmcLiwpgkmdIOqZQT\Iscan\iscanserver
+IP Port:                     2240
+IP Address:                  192.168.99.1
+Working Directory:           C:\Users\Zeta\Documents\GitHub\Public-Portfolio\VbtmcPORkTqFuOmcLiwpgkmdIOqZQT\Iscan\scanwork
+Client Installation Folder   
+Client Software version      
