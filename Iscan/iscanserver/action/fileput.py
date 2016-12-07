@@ -1,5 +1,5 @@
-from docsvr import DocReqCm
-d
+from docsvr import DocReqCmd
+
 class doPUT(DocReqCmd):
     """ Handler for PUT command
         Expected format of command/args
