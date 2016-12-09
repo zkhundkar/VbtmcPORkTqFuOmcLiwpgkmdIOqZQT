@@ -5,16 +5,7 @@ __doc__ = r"""
             Purpose     : Multi-threaded server for proprietary image/document storage and retrieval system
             Copyright   : All rights reserved
             
-            Exposes iAlert calls to other modules
-                To use iAlert, the following steps must be completed
-               1. Call this module's initiAlert sub to create the iAlert
-                  COM object.
-               2. Call this module's ActivateiAlert function to instruct the
-                  com object to connect to the server
-               3. Send heartbeats or alerts using this module's
-                  'SendHeartbeat' or 'SendAlert' functions.
-               4. When finished, use the 'DestroyiAlert' sub to shutdown
-                  and prevent memory leaks.
+
     **************************************************************************
     """
 
@@ -540,21 +531,32 @@ class DocReqCmd:
 
 class CmdHandlerFactory:
 
+	r""" Factory class - return a class that can handle the action requested
+	              If there are no matches, the class returns None and calling
+				  routine should return an error to the client issuing the command
+	"""
+
+	
     def get(self, s):
-        try:
-            mclass = s.lower().replace('-',"")
-            mod = __import__("action."+mclass)
-            _class = getattr(mod, "do"+s)
+	
+		def _map(x):
+			M = {'FILEMOVE':'filecopy', 
+			'GET': 'fileget',
+			'PUT' : 'fileput'}
+			if x in M:
+				return M[x]
+			return s.lower().replace('-',"")
+				
+		try:
+			cmds = _map(s)
+            mod = __import__("action."+cmds)
+            _class = getattr(mod, "do"+s.lower().replace('-',""))
             
             return _class
         except (ImportError, AttributeError) as e:
             return None
 
 
-#doFILEMOVE = doFILECOPY
-#doGET-LOCK = doGET
-#doWEBGET-LOCK = doWEBGET
-#doPUT-LOCK = doPUT
 
 class LockManager():
     def __init__(self):
