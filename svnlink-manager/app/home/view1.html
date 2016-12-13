@@ -1,0 +1,15 @@
+<p> </p>
+
+<div class="container-fluid">
+
+<p> </p><table class="table table-condensed table-bordered"> 
+          <tr ng-repeat="evt in $ctrl.runlog | orderBy: $ctrl.revtime"> 
+            <td >{{ evt.event }}</td> 
+            <td >{{ evt.event_repo}}</td> 
+			<td >{{ evt.event_done}}</td> 
+			<td >{{ evt.comment }}</td> 
+            <td >{{ evt.ts }}</td> 
+          </tr> 
+        </table><p> </p> 
+		
+</div>
