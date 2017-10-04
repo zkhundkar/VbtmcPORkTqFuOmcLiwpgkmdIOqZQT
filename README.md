@@ -16,7 +16,7 @@ that are complete in them selves, but there is enough detail to give you a sense
 	1. IScan - multi-threaded standalone document server in python. The server uses a proprietary custom protocol 
 	2. SvnLink - Windows service in python that pulls documents from a range of remote servers and pushes them to a central subversion repository. Document retrieval uses a proprietary custom protocol.
 - *Java projects* 
-	1. code-validator-api - see public repository.
+	1. code-validator-api - [see repository](https://github.com/zkhundkar/code-validator-api).
 - *Javascript projects*
 	1. SvnLink Manager - single page web application using *AngularJS* to manage the SvnLink service
 	2. CDA Renderer - XSLT with embedded javascript for rendering MU3 compliant Consolidatded Clinical Documents
