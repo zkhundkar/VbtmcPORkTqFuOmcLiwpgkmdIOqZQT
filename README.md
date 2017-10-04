@@ -6,16 +6,20 @@ that are complete in them selves, but there is enough detail to give you a sense
 > If you wish to review any of the projects in greater detail, please send me an email with your contact information (valid email), and reason you want to look at them. 
 
 ## Table of Contents
+- *Machine Learning*
+	1. Titanic Disaster Survival Prediction - ML project to predict the survival probability of passengers on the ill-fated Titanic. The report summarizes the results of a number of different supervised learning techniques (Simple decision trees, Random Forest ensembles of DT and Support Vector machines)
+	2. MNIST digit recognition - using Keras with TensorFlow backend
+	3. Customer segmentation 
+	4. Smartcab - Training a smartcab to follow traffic rules using Q-learning
+	5. Instacart - project based on Kaggle competition
 - *Python projects*
 	1. IScan - multi-threaded standalone document server in python. The server uses a proprietary custom protocol 
 	2. SvnLink - Windows service in python that pulls documents from a range of remote servers and pushes them to a central subversion repository. Document retrieval uses a proprietary custom protocol.
-- *AngularJS projects*
-	1. SvnLink Manager - single page web application using AngularJS to manage the SvnLink service
-- *Machine Learning*
-	1. Titanic Disaster Survival Prediction - ML project to predict the survival probability of passengers on the ill-fated Titanic. The report summarizes the results of a number of different supervised learning techniques (Simple decision trees, Random Forest ensembles of DT and Support Vector machines)
-	2. MNIST digit recognition
-	3. Customer segmentation 
-	4. Smartcab - Training a smartcab to follow traffic rules using Q-learning
+- *Java projects* 
+	1. code-validator-api - see public repository.
+- *Javascript projects*
+	1. SvnLink Manager - single page web application using *AngularJS* to manage the SvnLink service
+	2. CDA Renderer - XSLT with embedded javascript for rendering MU3 compliant Consolidatded Clinical Documents
 
 ## Usage ##
 The projects included here are for review only. Please do not fork.
