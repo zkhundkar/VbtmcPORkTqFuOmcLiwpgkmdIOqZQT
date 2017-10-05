@@ -26,4 +26,4 @@ Developed an xslt transform with embedded Javascript and callbacks to a .NET app
 
 
 
-[Sample](https://github.com/zkhundkar/public-portfolio/edit/master/cda-render/ccda sample.png)
+[Sample](https://github.com/zkhundkar/public-portfolio/cda-render/ccda_sample.png)
