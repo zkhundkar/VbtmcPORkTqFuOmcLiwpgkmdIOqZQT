@@ -60,7 +60,7 @@ We implemented Q-learning with greedy and e-greedy policies. we trained the agen
 
 #### Full report
 
-Available [here](https://github.com/zkhundkar/Public-portfolio/blob/master/smartcab/report.pdf).
+Available [here](./report.pdf).
 
 ## Usage ##
  
