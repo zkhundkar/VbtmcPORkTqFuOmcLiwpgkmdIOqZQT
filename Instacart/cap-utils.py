@@ -3,8 +3,17 @@ import pandas as pd
 import os
 import time
 import gc
+import __future__
+__doc__ = """This module is a collection of utility routines created for pre-processing the csv 
+             files from the Instacart market Basket competition. We chose to save the dataframes
+             in native format (hdf) to speed up retrieving the frames between different
+             processing sessions.
 
-print "Loaded numpy and pandas libraries"
+             The module is set up to be imported into a Jupyter notebook kernel and the 
+             module functions invoked as needed in the notebook.
+"""     
+
+print("Loaded numpy and pandas libraries")
 
 _datapath = './'
 os.chdir(_datapath)
@@ -16,12 +25,24 @@ BASKETS = 'baskets.hdf5'
 RANDOM_STATE = 46
 
 def get_from_hdf(tnames, STORE=RAW_STORE):
+    """Retrieves a set of pandas.DataFrame objects from a named store. 
+    
+    Arguments:
+        tnames<list> -- list<string> names of tables (dataframes) to retrieve
+    
+    Keyword Arguments:
+        STORE <module variable> -- Must be one of the named stores above
+    
+    Returns:
+        <dict> -- {tablename: pandas.DataFrame, ... }
+    """
+
     hnames = {}
     result = {}
     for n in tnames:
         name = hname[n] if n in hnames else n
         try:
-            print "Loading {} datasets ...".format(n)
+            print("Loading {} datasets ...".format(n))
             result[n] = pd.read_hdf(STORE, name)
         except Exception as e:
             print e
@@ -29,6 +50,25 @@ def get_from_hdf(tnames, STORE=RAW_STORE):
     return result
 
 def preprocess_orders(orders):
+    """Clean-up orders table. 
+            handles missing values and outliers 
+            The `days_since_prior_order` uses a value of _30_ for 
+                true values greater than or equal to 30. We modified this to
+                a random number between 30 and 50 and added a categorical
+                variable to indicate that those values are assigned during
+                preprocessing. 
+            Additionally, this routine also calculates the cumulative number
+            of days between a user's orders and appends a new column
+            'log_ds' (log of the #day since last order) as an engineered
+            feature
+    
+    Arguments:
+        orders<pandas.DataFrame> -- A DataFrame representing the ORDERS table.
+
+    Note
+    ----
+    This function mutates the input DataFrame
+    """
 
     orders.sort_values(by=['user_id', 'order_number'], inplace=True)
 
@@ -38,7 +78,7 @@ def preprocess_orders(orders):
 
     # Impute 'missing' days_since_prior_order values
     orders.days_since_prior_order.fillna(orders.days_since_prior_order.mean(), inplace=True)
-    ser=orders[x==30].index
+    ser = orders[x == 30].index
     orders.days_since_prior_order[ser] = pd.DataFrame(np.random.randint(30,50,len(ser)), index=ser)
     orders['csum_ds'] = orders.groupby('user_id')['days_since_prior_order'].transform('cumsum') 
 
@@ -46,14 +86,39 @@ def preprocess_orders(orders):
     orders['log_ds'] = np.log(orders.days_since_prior_order+1)
 
 def get_hist_chunk(orders, priors, frac=0.05, seed=RANDOM_STATE, **kw):
+    """A function to assist development and code testing. This takes
+        a random sample (size determined by `frac`) of users and then 
+        selects their order history. This enables us to go through the
+        pre-processing logic in small chunks to verify that the logic is
+        working correctly.
+    
+    Arguments:
+        orders<DataFrame> -- table of all orders
+        priors<DataFrame> -- table of with product detail for all orders
+        **kw {[type]} -- keywords for determining the chunk
+            start, size - starting row and size - selects a sequential 
+                    set of rows from the orders table. Overrides frac
+            all     - selects all orders
+            if none are preent, we use frac to return a random sample 
+                of orders and their product details.
+    
+    Keyword Arguments:
+        frac<float> -- fraction of table to sample (default: 5%)
+        seed<int>   -- seed value for the random number generator
+                        for reproducible results (default: RANDOM_STATE)
+    
+    Returns:
+        <DataFrame> -- [description]
+    """
+
     if 'start' in kw:
         start = kw['start']
         chunk = kw['size']
         ochunk = orders.iloc[start:start+chunk]
-        print "Selected {} orders {}:{}.".format(len(ochunk), start, start+chunk)
+        print("Selected {} orders {}:{}.".format(len(ochunk), start, start+chunk))
     elif 'all' in kw:
         ochunk = orders
-        print "Selected all orders."
+        print("Selected all orders.")
     else:
         u = orders.groupby('user_id')['order_id'].last().reset_index()[['user_id']]
         u = u.sample(frac=frac, random_state=seed)
@@ -67,6 +132,21 @@ def add_product_groups(p, products):
     return p.merge(products[['product_id', 'department_id', 'aisle_id']], on='product_id')
 
 def diff_1(m):
+    """Helper function for computing the number of days since the previous
+     order (for the same user) with the same product. This function uses 
+    `numpy` matrices in order to speed up processing. The equivalent code
+    written as a lambda function using aggregate or apply ran 20 times 
+    slower without compilation (estimate based on small samples)."        
+    
+    Arguments:
+        m<numpy matrix> -- each row is a row of integers
+                            [user_id, product_id, order_id, number_of days_since_first order]
+    
+    Returns:
+        <numpy matrix> -- the last column of each row contains the number of days
+                            since the last time the product was ordered by the user
+    """
+
     user = product = ""
     last = 0
     #print m.shape
@@ -83,17 +163,40 @@ def diff_1(m):
     return m
 
 def user_product_ds_last(p):
+    """Calculation of the number of days since the last time product was ordered by user
+         1. sort the data by `user_id`, `product_id`, and `order_number`
+         2. take the difference of the cumulative sum of days since the last order
+             (calculated in preprocess_orders and stored as `csum_ds`) of each row and its previous one.
+             For the first row for each user, we use the average days since the previous order
+   
+    Arguments:
+        p<DataFrame> -- [description]
+    
+    Returns:
+        [type] -- [description]
+    """
 
-        p2 = p[['user_id', 'product_id', 'order_number', 'csum_ds']]\
-                .sort_values(by=['user_id', 'product_id', 'order_number'])
-        g = pd.DataFrame(diff_1(p2.as_matrix()), dtype='int32')
-        g.columns = ['user_id', 'product_id', 'order_number', 'ds_last']
-        print len(g), g.columns 
-        #p = p.merge(g, on=['user_id', 'product_id', 'order_number'])
-        return g
+
+    p2 = p[['user_id', 'product_id', 'order_number', 'csum_ds']]\
+            .sort_values(by=['user_id', 'product_id', 'order_number'])
+    g = pd.DataFrame(diff_1(p2.as_matrix()), dtype='int32')
+    g.columns = ['user_id', 'product_id', 'order_number', 'ds_last']
+    return g
 
 
 def user_product_features(phist, verbosity=3):
+    """Add product-related engineered features
+    
+    Arguments:
+        phist {[type]} -- [description]
+    
+    Keyword Arguments:
+        verbosity {[type]} -- [description] (default: {3})
+    
+    Returns:
+        [type] -- [description]
+    """
+
 
     #phist = p[p.eval_set == 0]
     tic = tic0 = time.time()
@@ -170,6 +273,18 @@ def user_product_features(phist, verbosity=3):
     return up_feat
 
 def basket_features(phist, verbosity=3):
+    """Add basket-specific features
+    
+    Arguments:
+        phist {[type]} -- [description]
+    
+    Keyword Arguments:
+        verbosity {[type]} -- [description] (default: {3})
+    
+    Returns:
+        [type] -- [description]
+    """
+
     tic = time.time()
     # Basket characteristics
     basket = phist.groupby(['user_id', 'order_id'])\
@@ -214,59 +329,6 @@ def get_sample(p, **kw):
             100.0*frac, int(len(u)*frac), colname)
     return ochunk
 
-def later():
-    ud_p=phist.groupby(['user_id', 'department_id', 'product_id' ])['reordered']\
-        .agg(['count', 'mean'] ).reset_index()
-    p_udp.columns = ['user_id', 'department_id', 'product_id', 'udp_count', 'udp_reord_prob']
-    #print p_udp.describe()
-
-    pa_up=phist.groupby(['user_id', 'order_id', 'aisle_id' ])\
-        .agg({'product_id':'nunique',\
-              'reordered':'mean'} ).reset_index()
-    pa_up.columns = ['user_id', 'order_id', 'aisle_id', 'ua_pcount', 'ua_reord_prob']
-
-    u_orders=u_orders.groupby('user_id').agg({'order_id':'nunique', 'product_id':'mean'})\
-        .reset_index().rename(columns={'order_id':'uo_count', 'product_id':'ubasket_avg'})
-    p_up=p_up.merge(u_orders, on='user_id')
-    p_up['up_oprob'] = (p_up.up_total / p_up.uo_count).astype('float16')
-
-    #print p_up.groupby(['user_id', 'product_id'])['up_total']drop('up_prob', axis=1, inplace=True)
-    #u_order_count = len(p_up.up_total)
-    #p_up['up_prob'] = p_up.up_total/u_order_count
-    #order_count = len(p.groupby('order_id'))
-    #pp_up= phist.groupby(['product_id'])['reordered'].agg(['count','mean','std']).reset_index()\
-    #    .rename(columns={'count':'p_total', 'mean':'p_reord_prob', 'std':'p_reord_std'})    
-    #pp_up['p_prob'] = (pp_up.p_total/order_count).astype('float16')
-    #del pp
-    #print order_count, len(pp_up[pp_up.p_total>1000])
-    ##pd_up.columns=pd_up.columns.droplevel()
-    #print a_p.describe()
-    #print pp_up.describe()
-    #print p_up.describe()
-    #pp.reset_index(drop=True, inplace=True)
-    #print priors[(priors.order_id==59336) ][['order_id','product_id','reordered']]
-    #print orders[orders.user_id==59819][['user_id', 'order_id', 'order_number','eval_set']]
-    #print pp.sort_values(by='count', ascending=False).head() 
-    prod=19660
-    user=59819
-    oid=1079448
-    #print p[(p.user_id==user) & (p.product_id==27966)].sort_values(by='order_number')[['order_number','eval_set','reordered']]
-    #print p[p.order_id==oid]
-
-    #orders=orders.sort_values(by=['user_id','order_number'])
-    #o2=orders[orders.user_id==user].rename(columns={'days_since_prior_order':'ds'})
-    #o2.ds=np.exp(o2.ds).astype('int8')
-    ##o2['cum_ds']=o2.ds.cumsum()
-    #print [0]+list(o2.cum_ds)[:-1]
-    #o2['ds2']=[0]+list(o2.cum_ds)[:-1]
-    #print o2[['ds', 'cum_ds', 'ds2']].head(10)
-    
-
-    #print o2[['user_id','order_number','ds','cum_ds','ds2']].head(10)
-    #print p2.ds2
-    #p2[p2.product_id==prod][['user_id','order_number','reordered','ds','cum_ds','ds2']].head(10)
-    #p2.head()
-    return
 
 try:
     time.time()
@@ -301,6 +363,16 @@ def build_user_topn_aisles(p, topN=10):
     return g
 
 def add_aisles(a, corr=CORR):
+    """Helper function to build correlation matrix
+        Mark 1 for each aisle that had a product in the basket 
+    
+    Arguments:
+        a <list>    -- list of rows corresponding to one basket
+    
+    Keyword Arguments:
+        corr <matrix> -- correlation matrix
+    """
+
     global NUM_AISLES
     X = np.zeros(NUM_AISLES+1).reshape(1, NUM_AISLES+1)
     for i in a:
@@ -310,6 +382,14 @@ def add_aisles(a, corr=CORR):
     return
 
 def add_corr(x, corr):
+    """Helper function for building correlation matrix.
+        Adds 1 for each product in an aisle to every aisle
+    
+    Arguments:
+        x <matrix> [1, NUM_AISLES] -- [description]
+        corr <matrix> -- correlation matrix
+    """
+
     global NUM_AISLES
     user = ""
     order = ""
@@ -340,13 +420,22 @@ def add_corr(x, corr):
 
     return
 
-def build_row(g, N=10):
-    # g show be an array of aisle_ids
-    # returns an array of the N-most frequent aisle_ids
-
-    return row
-
 def build_correlation(phist, **kw):
+    """Build a correlation matrix of the number of times products of one aisle 
+        appeared in the same basket as products from another aisle
+    
+    Arguments:
+        phist <DataFrame> -- product_history table (includes, user, order
+             and product detail)
+        **kw 
+            chunk_size <int> -- # rows of phist to process in each pass
+            max_iter <int>   -- # of time to loop
+            max_iter x chunk_size determines the maximum number of rows processed
+                in building the correlation matrix
+
+    Returns: CORR <matrix>
+    """
+
     csum = 0.0
     gsum = 0.0
     osum = 0
@@ -355,37 +444,42 @@ def build_correlation(phist, **kw):
     ulist = phist[phist.eval_set<2].groupby(['user_id']).count().reset_index()
     chunk_size = min(chunk_size, len(ulist))
 
-    #CORR = np.zeros((NUM_AISLES+1)).reshape(NUM_AISLES+1, (NUM_AISLES+1))
+    CORR = np.zeros((NUM_AISLES+1)).reshape(NUM_AISLES+1, (NUM_AISLES+1))
 
-    if True:
-        iter=c=0
-        df=""
-        r_range = xrange(0, len(ulist), chunk_size)
-        for rowset in r_range:
-            iter += 1
-            start = rowset*chunk_size
-            end = (rowset+1)*chunk_size
-            oset = ulist.iloc[ulist.index[start:end]]
-            c+= len(df)
-            tic= time.time()
-            g = oset[['user_id']].merge(phist, on=['user_id'])\
-                .sort_values(by=['user_id', 'order_id'])
-            add_corr(g[['user_id', 'order_id', 'aisle_id']].as_matrix(), CORR)
-            osum += len(g)
-            csum += time.time()-tic
-            
-            if iter % 4 == 0:
-                print "{:2d} chunks in {:3f} s".format(iter, csum)
-            if iter+1>max_iter:
-                break
-
-    #except Exception as e:
-    #    print e
-
-    #print "Count={}, orders={}, in {} iterations".format(c, osum, iter)
-    #print "Processing took {} s".format(csum)
+    iter=c=0
+    df=""
+    r_range = xrange(0, len(ulist), chunk_size)
+    for rowset in r_range:
+        iter += 1
+        start = rowset*chunk_size
+        end = (rowset+1)*chunk_size
+        oset = ulist.iloc[ulist.index[start:end]]
+        c+= len(df)
+        tic= time.time()
+        g = oset[['user_id']].merge(phist, on=['user_id'])\
+            .sort_values(by=['user_id', 'order_id'])
+        add_corr(g[['user_id', 'order_id', 'aisle_id']].as_matrix(), CORR)
+        osum += len(g)
+        csum += time.time()-tic
+        
+        if iter % 4 == 0:
+            print "{:2d} chunks in {:3f} s".format(iter, csum)
+        if iter+1>max_iter:
+            break
+    return CORR
 
 def corr_to_frame(corr):
+    """Convert the correlation matrix to a DataFrame
+    
+    Arguments:
+        corr<numpy matrix> -- Matrix containing counts of
+                number of times products in an aisle appeared in the
+                same basket as products in another aisle
+    
+    Returns:
+        <DataFrame> 
+    """
+
     global NUM_AISLES
 
     cut = NUM_AISLES+1
@@ -396,6 +490,19 @@ def corr_to_frame(corr):
     return c2
 
 def topn_aisles(c2, topsort=15):
+    """Reduce the full aisle-aisle correlation matrix from 131x131 to 
+        one of smaller size, keeping only the N most popular aisles
+    
+    Arguments:
+        c2<matrix> -- correlation matrix aisle_count x aisle_count
+    
+    Keyword Arguments:
+        topsort<int> -- Number of aisles to keep in the matrix (default: 15)
+    
+    Returns:
+        <matrix> -- matrix of dimensions topsort x topsort
+    """
+
     global NUM_AISLES
 
     cut = NUM_AISLES+1
@@ -405,25 +512,28 @@ def topn_aisles(c2, topsort=15):
         sortcol=c2[c2.aisle_id !=i ].sort_values(by=i, ascending=False)
         zsorted[i]=np.concatenate([[i], list(sortcol[:topsort].index.astype('int8'))])
 
-        #sortcol=c2[c2[0]!=i].sort_values(i, ascending=False)[:topsort]
-        # sorted[i]=np.concatenate([[i], sortcol[0],  sortcol[i]/sortcol[i].sum()])
-        #np.concatenate([[i], list(sortcol[:topsort].index.astype('int8')), np.array(sortcol[i]/sortcol[i].sum())[:topsort]])
-
     dd = pd.DataFrame(zsorted, dtype="int8").rename(columns=dict([(k+1, "top-{:d}".format(k+1)) for k in range(topsort)]))
     dd.rename(columns=dict([(k+topsort+1, "corr-{:d}".format(k+1)) for k in range(topsort)]), inplace=True)
     dd.rename(index=str, columns={0:'aisle_id'}, inplace=True)
     dd.aisle_id=dd.aisle_id.astype('int8')
-    #for k in range(topsort):
-    #    col='top-{}'.format(k+1)
-    #    dd[col]=dd[col].astype('int')
-    
-    print dd[dd.aisle_id!=0].head()
+
+    print(dd[dd.aisle_id!=0].head())
     return dd
 	
 # --------- Beanhcmark models
 
 # ---------- Benchmark 1 -- 
 def bench1_fit(priors, orders):
+    """[summary]
+    
+    Arguments:
+        priors {[type]} -- [description]
+        orders {[type]} -- [description]
+    
+    Returns:
+        [type] -- [description]
+    """
+
     pset = orders[orders.eval_set==0][['order_id', 'user_id']]
     bench = priors.merge(pset,  on='order_id')
 
@@ -436,7 +546,7 @@ def bench1_fit(priors, orders):
     basket_size = bench.groupby('order_id')['product_id'].count()\
     .reset_index().rename(columns={'product_id':'Average Size'})
     topN = int(round(np.float(basket_size[[1]].mean()[0]), 0))
-    print "Average basket size is {:.3f}".format(topN)
+    print("Average basket size is {:.3f}".format(topN))
     
     model = popular.product_id[:topN].reset_index().drop('index', axis=1)
     model['in_order'] = (np.ones(len(model))).astype('uint8')
@@ -444,6 +554,16 @@ def bench1_fit(priors, orders):
 
 # ---------- Benchmark 2 -- 
 def bench2_fit(priors, orders):
+    """[summary]
+    
+    Arguments:
+        priors {[type]} -- [description]
+        orders {[type]} -- [description]
+    
+    Returns:
+        [type] -- [description]
+    """
+
 	# Add user_id to the historical set
 	pset = orders[orders.eval_set==0][['order_id', 'user_id', 'order_number']]
 	bench = priors.merge(pset,  on='order_id')
@@ -455,6 +575,16 @@ def bench2_fit(priors, orders):
 	
 # ---------- Benchmark 3 -- 
 def bench3_fit(priors, orders):
+    """[summary]
+    
+    Arguments:
+        priors {[type]} -- [description]
+        orders {[type]} -- [description]
+    
+    Returns:
+        [type] -- [description]
+    """
+
 	# Find the history set -- prior and train
 	bench = orders[orders.eval_set==0][['order_id', 'user_id', 'order_number']]
 	bench3 = bench.merge(priors, on='order_id')
@@ -476,6 +606,9 @@ def bench3_fit(priors, orders):
 # ---------- Benchmark predictions -- 
 
 def	bench_predict(model, X):
+    """[summary]
+    """
+
 	# Input X should be a dataframe including a user_id
 	# Input model should be a dataframe with two or three columns:
 	#		[user_id], product_id and in_order
